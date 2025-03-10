@@ -1,0 +1,8 @@
+Hello {{ user.username }},
+
+Please click the following link to activate your new email:
+
+{{ verification_url }}
+
+Thank you,
+CurAI
