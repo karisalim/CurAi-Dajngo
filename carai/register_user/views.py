@@ -2,7 +2,7 @@ from rest_framework import status,viewsets, permissions, generics,filters
 from rest_framework.response import Response
 from rest_framework.decorators import action
 from django.shortcuts import get_object_or_404
-from .models import Specialization, CustomUser,BlacklistedAccessToken
+from .models import Specialization, CustomUser,BlacklistedAccessToken 
 from .serializers import SpecializationListSerializer, SpecializationDetailSerializer, DoctorSerializer , CustomChangePasswordSerializer
 from .filters import SpecializationFilter, DoctorFilter
 from django_filters.rest_framework import DjangoFilterBackend
@@ -97,7 +97,15 @@ class ChangePasswordView(generics.UpdateAPIView):
     serializer_class = CustomChangePasswordSerializer
     permission_classes = [permissions.IsAuthenticated]
 
-    def update(self, request, *args, **kwargs):
+    def put(self, request, *args, **kwargs):
+        # منع استخدام PUT
+        return Response(
+            {"detail": "Method PUT not allowed. Use PATCH instead."},
+            status=status.HTTP_405_METHOD_NOT_ALLOWED
+        )
+
+    def patch(self, request, *args, **kwargs):
+        # السماح فقط بـ PATCH
         serializer = self.get_serializer(data=request.data, context={"request": request})
         serializer.is_valid(raise_exception=True)
         serializer.save()
@@ -106,10 +114,28 @@ class ChangePasswordView(generics.UpdateAPIView):
         auth_header = request.headers.get("Authorization", "")
         if auth_header.startswith("Bearer "):
             access_token = auth_header.split(" ")[1]
-            decoded_token = jwt.decode(access_token, options={"verify_signature": False})
-            jti = decoded_token.get("jti")
-            if not BlacklistedAccessToken.objects.filter(jti=jti).exists():
-                BlacklistedAccessToken.objects.create(jti=jti)
+            try:
+                decoded_token = jwt.decode(access_token, options={"verify_signature": False})
+                jti = decoded_token.get("jti")
+                if not BlacklistedAccessToken.objects.filter(jti=jti).exists():
+                    BlacklistedAccessToken.objects.create(jti=jti)
+            except jwt.ExpiredSignatureError:
+                return Response({"error": "Token has expired"}, status=status.HTTP_400_BAD_REQUEST)
+            except jwt.InvalidTokenError:
+                return Response({"error": "Invalid token"}, status=status.HTTP_400_BAD_REQUEST)
+
+        # إضافة الـ refresh_token إلى القائمة السوداء
+        refresh_token = request.data.get('refresh')
+        if refresh_token:
+            try:
+                decoded_refresh_token = jwt.decode(refresh_token, options={"verify_signature": False})
+                refresh_jti = decoded_refresh_token.get("jti")
+                if not BlacklistedRefreshToken.objects.filter(jti=refresh_jti).exists():
+                    BlacklistedRefreshToken.objects.create(jti=refresh_jti)
+            except jwt.ExpiredSignatureError:
+                return Response({"error": "Refresh token has expired"}, status=status.HTTP_400_BAD_REQUEST)
+            except jwt.InvalidTokenError:
+                return Response({"error": "Invalid refresh token"}, status=status.HTTP_400_BAD_REQUEST)
 
         return Response({"detail": "Password changed successfully. Please log in again."}, status=status.HTTP_200_OK)
 
