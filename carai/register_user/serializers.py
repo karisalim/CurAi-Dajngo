@@ -39,12 +39,6 @@ class CustomTokenObtainPairSerializer(TokenObtainPairSerializer):
 
         return data
 
-# Karim Edit
-
-
-
-
-
 
 
 
