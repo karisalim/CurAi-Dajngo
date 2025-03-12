@@ -7,12 +7,11 @@ from rest_framework.exceptions import AuthenticationFailed
 from django.contrib.auth.hashers import make_password
 
 from rest_framework_simplejwt.serializers import TokenObtainPairSerializer
+from django.contrib.auth import authenticate
 
 
 #Karim
 # send email and notification after change password
-from rest_registration.verification_notifications import send_register_email_verification_email_notification
-from rest_registration.signers.register import RegisterSigner
 import jwt  # تأكد من استيراد jwt
 from django.contrib.auth.password_validation import validate_password
 from django.contrib.auth import get_user_model
@@ -24,42 +23,26 @@ from rest_framework.response import Response
 from django.contrib.auth.password_validation import validate_password
 from django.core.exceptions import ValidationError
 from .models import BlacklistedAccessToken ,BlacklistedRefreshToken   # أضف هذا السطر
+# from rest_registration.verification_notifications import send_register_email_verification_email_notification
+from rest_registration.signers.register import RegisterSigner
+from register_user.models import CustomUser  # تأكد من استيراد الموديل الخاص بالمستخدمين
 
-
-# class CustomTokenObtainPairSerializer(TokenObtainPairSerializer):
-#     def validate(self, attrs):
-#         data = super().validate(attrs)
-
-#         # ✅ منع تسجيل الدخول إذا لم يتم التحقق من البريد
-#         if not self.user.is_active:
-#             raise AuthenticationFailed("يجب عليك تفعيل حسابك عبر البريد الإلكتروني قبل تسجيل الدخول.", code='authorization')
-
-#         # ✅ منع الأطباء من تسجيل الدخول قبل موافقة الأدمن
-#         if self.user.role == 'doctor' and not self.user.is_approved:
-#             raise AuthenticationFailed("حسابك قيد المراجعة من قبل الإدارة.", code='authorization')
-
-#         data['user_id'] = self.user.id
-#         data['username'] = self.user.username
-#         data['role'] = self.user.role
-#         data['refresh'] = str(self.get_token(self.user))
-#         data['access'] = data['access']
-
-#         return data
-
+# Karim
 
 class CustomTokenObtainPairSerializer(TokenObtainPairSerializer):
     def validate(self, attrs):
         # ✅ استرجاع بيانات تسجيل الدخول
-        login_field = attrs.get("username") or attrs.get("email")  # دعم `email` أو `username`
+        login_field = attrs.get("username") or attrs.get("email")  # دعم email أو username
         password = attrs.get("password")
 
         if not login_field or not password:
             raise AuthenticationFailed("يجب إدخال البريد الإلكتروني أو اسم المستخدم وكلمة المرور.", code='authorization')
 
-        # ✅ البحث عن المستخدم باستخدام `email` أو `username`
+        # ✅ البحث عن المستخدم باستخدام email أو username
         user = CustomUser.objects.filter(email=login_field).first() or \
                CustomUser.objects.filter(username=login_field).first()
 
+        # ✅ التحقق من صحة البيانات وكلمة المرور
         if not user or not user.check_password(password):
             raise AuthenticationFailed("الحساب غير موجود أو البيانات غير صحيحة.", code='authorization')
 
@@ -71,6 +54,12 @@ class CustomTokenObtainPairSerializer(TokenObtainPairSerializer):
         if user.role == 'doctor' and not user.is_approved:
             raise AuthenticationFailed("حسابك قيد المراجعة من قبل الإدارة.", code='authorization')
 
+        # ✅ تسجيل دخول المستخدم باستخدام authenticate()
+        authenticated_user = authenticate(email=user.email, password=password)
+
+        if authenticated_user is None:
+            raise AuthenticationFailed("No active account found with the given credentials")
+
         # ✅ إنشاء التوكنز
         refresh = self.get_token(user)
         data = {
@@ -80,121 +69,14 @@ class CustomTokenObtainPairSerializer(TokenObtainPairSerializer):
             "username": user.username,
             "role": user.role,
         }
+
         return data
 
 
-# class CustomRegisterUserSerializer(DefaultRegisterUserSerializer):
-#     specialization = serializers.PrimaryKeyRelatedField(queryset=Specialization.objects.all(), required=False)
-#     consultation_price = serializers.DecimalField(max_digits=10, decimal_places=2, required=False)
-#     location = serializers.CharField(max_length=255, required=False)
-
-#     def validate(self, attrs):
-#         role = attrs.get('role')
-#         if role == 'doctor':
-#             if not attrs.get('specialization'):
-#                 raise serializers.ValidationError("Specialization is required for doctors.")
-#             if not attrs.get('consultation_price'):
-#                 raise serializers.ValidationError("Consultation price is required for doctors.")
-#             if not attrs.get('location'):
-#                 raise serializers.ValidationError("Location is required for doctors.")
-
-
-
-#         elif role == 'patient':
-#             if 'specialization' in attrs:
-#                 attrs.pop('specialization')
-#             if 'consultation_price' in attrs:
-#                 attrs.pop('consultation_price')
-#             if 'location' in attrs:
-#                 attrs.pop('location')
-
-#         return attrs
-
-
-#     def create(self, validated_data):
-#         specialization = validated_data.pop('specialization', None) if validated_data.get('role') == 'doctor' else None
-#         user = super().create(validated_data)
-
-#         if user.role == 'doctor':
-#             user.is_approved = False
-#         else:
-#             user.is_approved = True
-
-#         if specialization:
-#             user.specialization = specialization
-
-#         user.save()
-#         return user
-
-# class CustomRegisterUserSerializer(serializers.ModelSerializer):
-#     specialization = serializers.PrimaryKeyRelatedField(
-#         queryset=Specialization.objects.all(),
-#         required=False,
-#         allow_null=True
-#     )
-#     consultation_price = serializers.DecimalField(
-#         max_digits=10,
-#         decimal_places=2,
-#         required=False,
-#         allow_null=True
-#     )
-#     location = serializers.CharField(
-#         max_length=255,
-#         required=False,
-#         allow_blank=True
-#     )
-
-#     class Meta:
-#         model = CustomUser
-#         fields = [
-#             'username', 'first_name', 'last_name', 'email', 
-#             'phone_number', 'password', 'gender', 'age', 'role', 
-#             'specialization', 'consultation_price', 'location'
-#         ]
-#         extra_kwargs = {'password': {'write_only': True}}
-
-#     def validate_email(self, value):
-#         if CustomUser.objects.filter(email=value).exists():
-#             raise serializers.ValidationError("البريد الإلكتروني مسجل مسبقًا.")
-#         return value
-
-#     def create(self, validated_data):
-#         validated_data['password'] = make_password(validated_data.get('password'))
-#         specialization = validated_data.pop('specialization', None)
-#         user = super().create(validated_data)
-#         user.is_active = False  # سيُفعّل عبر البريد
-#         user.is_approved = (user.role == 'doctor')  # يحتاج موافقة إذا كان طبيبًا
-#         user.save()
-#         return user
-
-#     def to_representation(self, instance):
-#         data = super().to_representation(instance)
-#         data.pop('password', None)
-#         if instance.role == 'doctor':
-#             data['specialization'] = instance.specialization.name if instance.specialization else None
-#         return data
-
-#     def to_representation(self, instance):
-#         data = super().to_representation(instance)
-#         refresh = RefreshToken.for_user(instance)
-#         # data["role"] = getattr(instance, "role", None)
-#         data["specialization"] = instance.specialization.name if instance.specialization else None
-#         # data["consultation_price"] = instance.consultation_price
-#         # data["location"] = instance.location
-#         # data["is_approved"] = instance.is_approved
-#         data.pop('password', None)
-
-#         if getattr(instance, "role", None) == "doctor":
-#             return {
-#                 "message": f"Welcome, Dr. {instance.username}. Your account is successfully registered!",
-#                 "note": "Your profile is under review by the administrator."
-#             }
-#         return {"message": f"Welcome, mr. {instance.username} Your account has been registered successfully!"}
-
 # Karim
 
-
-class CustomRegisterUserSerializer(serializers.ModelSerializer): 
+# ✅ تسجيل المستخدمين الجدد
+class CustomRegisterUserSerializer(serializers.ModelSerializer):
     specialization = serializers.PrimaryKeyRelatedField(
         queryset=Specialization.objects.all(),
         required=False,
@@ -215,9 +97,8 @@ class CustomRegisterUserSerializer(serializers.ModelSerializer):
     class Meta:
         model = CustomUser
         fields = [
-            'username', 'first_name', 'last_name', 'email', 
-            'phone_number', 'password', 'gender', 'age', 'role', 
-            'specialization', 'consultation_price', 'location'
+            'username', 'first_name', 'last_name', 'email', 'phone_number', 'password',
+            'gender', 'age', 'role', 'specialization', 'consultation_price', 'location'
         ]
         extra_kwargs = {'password': {'write_only': True}}
 
@@ -226,44 +107,42 @@ class CustomRegisterUserSerializer(serializers.ModelSerializer):
             raise serializers.ValidationError("البريد الإلكتروني مسجل مسبقًا.")
         return value
 
+    def validate_password(self, value):
+        try:
+            validate_password(value)
+        except ValidationError as e:
+            raise serializers.ValidationError({"password": list(e.messages)})
+        return value
+
     def create(self, validated_data):
         validated_data['password'] = make_password(validated_data.get('password'))
-        role = validated_data.get('role', 'patient')
+        validated_data['is_active'] = False  
 
-        # ✅ جعل الحساب غير نشط حتى يتم التحقق
-        validated_data['is_active'] = False
-
+        specialization = validated_data.pop('specialization', None)
         user = CustomUser.objects.create(**validated_data)
 
-        # 🔹 إذا كان الطبيب، يحتاج موافقة الأدمن أيضًا
-        if role == 'doctor':
-            user.is_active = False  
-            user.is_approved = False  
+        if user.role == 'doctor':
+            user.is_approved = False
+            user.specialization = specialization
+
+        # ✅ إرسال إيميل التحقق
+        signer = RegisterSigner({'user_id': user.id})
+        # send_register_email_verification_email_notification(
+        #     self.context["request"],
+        #     user,
+        #     user.email
+        # )
 
         user.save()
-
-        # ✅ إرسال رابط التحقق عبر البريد الإلكتروني
-        signer = RegisterSigner({'user_id': user.id})
-        send_register_email_verification_email_notification(self.context["request"], user, user.email)
-
         return user
 
     def to_representation(self, instance):
         data = super().to_representation(instance)
         data.pop('password', None)
-
-        if instance.role == 'doctor':
-            data['specialization'] = instance.specialization.name if instance.specialization else None
-
-        if instance.role == 'doctor' and not instance.is_approved:
-            return {
-                "message": f"Welcome, Dr. {instance.username}. Your account is successfully registered!",
-                "note": "Your profile is under review by the administrator."
-            }
-        
         return {
-            "message": f"Welcome, {instance.username}. Your account has been registered successfully! Please check your email to verify your account."
+            "message": f"Welcome, {instance.username}. Please check your email to verify your account."
         }
+
 
 
 # change password >>> send notification and email after change password >>> Cutomized

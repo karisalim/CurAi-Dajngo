@@ -244,6 +244,7 @@ REST_REGISTRATION = {
 
     # ✅ **تفعيل الإيميل**
     "REGISTER_EMAIL_VERIFICATION_EMAIL_SENDER": "rest_registration.verification_notifications.send_register_email_verification_email_notification",
+
     # 🔹 المدة الزمنية للتحقق من البريد
     "REGISTER_EMAIL_VERIFICATION_PERIOD": timedelta(days=7),
     'REGISTER_VERIFICATION_ONE_TIME_USE': True,
@@ -257,7 +258,7 @@ REST_REGISTRATION = {
     # ),
     'REGISTER_SERIALIZER_CLASS': 'register_user.serializers.CustomRegisterUserSerializer',
     'REGISTER_OUTPUT_SERIALIZER_CLASS': 'register_user.serializers.CustomRegisterUserSerializer',
-    'REGISTER_EMAIL_SERIALIZER_CLASS': 'rest_registration.api.serializers.DefaultRegisterEmailSerializer',
+    # 'REGISTER_EMAIL_SERIALIZER_CLASS': 'rest_registration.api.serializers.DefaultRegisterEmailSerializer',
     
     # 🔹 صلاحية روابط إعادة تعيين كلمة المرور
     "RESET_PASSWORD_VERIFICATION_PERIOD": timedelta(minutes=20),
@@ -279,13 +280,14 @@ REST_REGISTRATION = {
         "body": "rest_registration/register_email/body.txt",
     },
     
-    'USER_LOGIN_FIELDS': ['email'],
+        'USER_LOGIN_FIELDS': ['email'],
         'USER_LOGIN_FIELDS_UNIQUE_CHECK_ENABLED': True,  # تأكد من أنه فريد
 
 
     # 🔹 إعدادات تغيير كلمة المرور
     "CHANGE_PASSWORD_SERIALIZER_PASSWORD_CONFIRM": True,
     'CHANGE_PASSWORD_SERIALIZER_CLASS': 'register_user.serializers.CustomChangePasswordSerializer',
+    
 
 }
 
@@ -329,19 +331,7 @@ SIMPLE_JWT = {
 }
 
 
-SWAGGER_SETTINGS = {
-    'USE_SESSION_AUTH': False,  # تعطيل تسجيل الدخول العادي لـ Django
-    'SECURITY_DEFINITIONS': {
-        'Bearer': {
-            'type': 'apiKey',
-            'name': 'Authorization',
-            'in': 'header',
-            'description': "Type 'Bearer <your_access_token>' in the box below."
-        }
-    },
-    'LOGIN_URL': '/api/login/',  # تعديل مسار تسجيل الدخول
-    'LOGOUT_URL': '/api/logout/',  # تعديل مسار تسجيل الخروج
-}
+
 
 
 
