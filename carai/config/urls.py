@@ -22,8 +22,8 @@ schema_view = get_schema_view(
     permission_classes=(permissions.AllowAny,),
 )
 urlpatterns = [
-    path('swagger/', schema_view.with_ui('swagger', cache_timeout=0),
-             name='schema-swagger-ui'),
+    path('swagger/', schema_view.with_ui('swagger', cache_timeout=0), name='swagger-ui'),
+    path('swagger/redoc/', schema_view.with_ui('redoc', cache_timeout=0), name='swagger-redoc'),
     path('swagger.yaml/', schema_view.without_ui(cache_timeout=0), name='swagger-yaml'),
     path('admin/', admin.site.urls),
     path('api/token/refresh/', TokenRefreshView.as_view(), name='token_refresh'),
@@ -33,4 +33,6 @@ urlpatterns = [
 
 
 
+
 ]
+

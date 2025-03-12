@@ -236,7 +236,8 @@ REST_REGISTRATION = {
     'VERIFICATION_URL_BUILDER': 'rest_registration.utils.verification.build_default_verification_url',
 
       # أضف هذا الإعداد لتحديد حقل التفعيل
-    'USER_VERIFICATION_FLAG_FIELD': 'is_active',
+    "USER_VERIFICATION_FLAG_FIELD": "is_active",  # يتم تفعيل الحساب عند التحقق
+
 
     
     "REGISTER_VERIFICATION_AUTO_LOGIN": False,  # لا يتم تسجيل الدخول تلقائيًا بعد التحقق
@@ -326,6 +327,22 @@ SIMPLE_JWT = {
     'JTI_CLAIM': 'jti',  # إضافة JTI لكل توكن
 
 }
+
+
+SWAGGER_SETTINGS = {
+    'USE_SESSION_AUTH': False,  # تعطيل تسجيل الدخول العادي لـ Django
+    'SECURITY_DEFINITIONS': {
+        'Bearer': {
+            'type': 'apiKey',
+            'name': 'Authorization',
+            'in': 'header',
+            'description': "Type 'Bearer <your_access_token>' in the box below."
+        }
+    },
+    'LOGIN_URL': '/api/login/',  # تعديل مسار تسجيل الدخول
+    'LOGOUT_URL': '/api/logout/',  # تعديل مسار تسجيل الخروج
+}
+
 
 
 # CORS_ALLOW_CREDENTIALS = True

@@ -4,7 +4,6 @@ from .views import SpecializationViewSet,DoctorViewSet,LogoutView,LoginView ,Cha
 from rest_registration.api.views import(
     login,
     register,
-    change_password,
     profile,
     reset_password,
     send_reset_password_link,

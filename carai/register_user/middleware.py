@@ -39,13 +39,11 @@ class BlockBlacklistedTokensMiddleware(MiddlewareMixin):
             try:
                 decoded_token = jwt.decode(access_token, options={"verify_signature": False})
                 jti = decoded_token.get("jti")
-
                 if BlacklistedAccessToken.objects.filter(jti=jti).exists():
                     return JsonResponse(
                         {"error": "This token has been revoked. Please log in again."}, 
                         status=401
                     )
-
             except jwt.ExpiredSignatureError:
                 return JsonResponse({"error": "Token has expired"}, status=401)
             except jwt.InvalidTokenError:

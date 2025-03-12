@@ -11,6 +11,8 @@ from rest_framework_simplejwt.serializers import TokenObtainPairSerializer
 
 #Karim
 # send email and notification after change password
+from rest_registration.verification_notifications import send_register_email_verification_email_notification
+from rest_registration.signers.register import RegisterSigner
 import jwt  # تأكد من استيراد jwt
 from django.contrib.auth.password_validation import validate_password
 from django.contrib.auth import get_user_model
@@ -24,23 +26,61 @@ from django.core.exceptions import ValidationError
 from .models import BlacklistedAccessToken ,BlacklistedRefreshToken   # أضف هذا السطر
 
 
+# class CustomTokenObtainPairSerializer(TokenObtainPairSerializer):
+#     def validate(self, attrs):
+#         data = super().validate(attrs)
+
+#         # ✅ منع تسجيل الدخول إذا لم يتم التحقق من البريد
+#         if not self.user.is_active:
+#             raise AuthenticationFailed("يجب عليك تفعيل حسابك عبر البريد الإلكتروني قبل تسجيل الدخول.", code='authorization')
+
+#         # ✅ منع الأطباء من تسجيل الدخول قبل موافقة الأدمن
+#         if self.user.role == 'doctor' and not self.user.is_approved:
+#             raise AuthenticationFailed("حسابك قيد المراجعة من قبل الإدارة.", code='authorization')
+
+#         data['user_id'] = self.user.id
+#         data['username'] = self.user.username
+#         data['role'] = self.user.role
+#         data['refresh'] = str(self.get_token(self.user))
+#         data['access'] = data['access']
+
+#         return data
+
+
 class CustomTokenObtainPairSerializer(TokenObtainPairSerializer):
     def validate(self, attrs):
-        data = super().validate(attrs)
+        # ✅ استرجاع بيانات تسجيل الدخول
+        login_field = attrs.get("username") or attrs.get("email")  # دعم `email` أو `username`
+        password = attrs.get("password")
 
-        data['user_id'] = self.user.id
-        data['username'] = self.user.username
-        data['role'] = self.user.role
-        if self.user.role == 'doctor' and not self.user.is_approved:
-            raise AuthenticationFailed(
-                'Your account is under review by the admin.')
-        data['refresh'] = str(self.get_token(self.user))
-        data['access'] = data['access']
+        if not login_field or not password:
+            raise AuthenticationFailed("يجب إدخال البريد الإلكتروني أو اسم المستخدم وكلمة المرور.", code='authorization')
 
+        # ✅ البحث عن المستخدم باستخدام `email` أو `username`
+        user = CustomUser.objects.filter(email=login_field).first() or \
+               CustomUser.objects.filter(username=login_field).first()
+
+        if not user or not user.check_password(password):
+            raise AuthenticationFailed("الحساب غير موجود أو البيانات غير صحيحة.", code='authorization')
+
+        # ✅ منع تسجيل الدخول إذا لم يتم تفعيل الحساب
+        if not user.is_active:
+            raise AuthenticationFailed("يجب عليك تفعيل حسابك عبر البريد الإلكتروني قبل تسجيل الدخول.", code='authorization')
+
+        # ✅ منع الأطباء من تسجيل الدخول قبل موافقة الأدمن
+        if user.role == 'doctor' and not user.is_approved:
+            raise AuthenticationFailed("حسابك قيد المراجعة من قبل الإدارة.", code='authorization')
+
+        # ✅ إنشاء التوكنز
+        refresh = self.get_token(user)
+        data = {
+            "refresh": str(refresh),
+            "access": str(refresh.access_token),
+            "user_id": user.id,
+            "username": user.username,
+            "role": user.role,
+        }
         return data
-
-
-
 
 
 # class CustomRegisterUserSerializer(DefaultRegisterUserSerializer):
@@ -154,7 +194,7 @@ class CustomTokenObtainPairSerializer(TokenObtainPairSerializer):
 # Karim
 
 
-class CustomRegisterUserSerializer(serializers.ModelSerializer):
+class CustomRegisterUserSerializer(serializers.ModelSerializer): 
     specialization = serializers.PrimaryKeyRelatedField(
         queryset=Specialization.objects.all(),
         required=False,
@@ -188,20 +228,24 @@ class CustomRegisterUserSerializer(serializers.ModelSerializer):
 
     def create(self, validated_data):
         validated_data['password'] = make_password(validated_data.get('password'))
-        role = validated_data.get('role', 'patient')  # الحصول على الدور
-        specialization = validated_data.pop('specialization', None)
+        role = validated_data.get('role', 'patient')
 
-        # إنشاء المستخدم
+        # ✅ جعل الحساب غير نشط حتى يتم التحقق
+        validated_data['is_active'] = False
+
         user = CustomUser.objects.create(**validated_data)
 
+        # 🔹 إذا كان الطبيب، يحتاج موافقة الأدمن أيضًا
         if role == 'doctor':
-            user.is_active = False  # الطبيب يحتاج موافقة
-            user.is_approved = False  # الطبيب يحتاج موافقة الأدمن
-            user.specialization = specialization  # إضافة التخصص
-        else:
-            user.is_active = True  # المريض يتم تفعيله تلقائيًا
+            user.is_active = False  
+            user.is_approved = False  
 
         user.save()
+
+        # ✅ إرسال رابط التحقق عبر البريد الإلكتروني
+        signer = RegisterSigner({'user_id': user.id})
+        send_register_email_verification_email_notification(self.context["request"], user, user.email)
+
         return user
 
     def to_representation(self, instance):
@@ -218,9 +262,8 @@ class CustomRegisterUserSerializer(serializers.ModelSerializer):
             }
         
         return {
-            "message": f"Welcome, {instance.username}. Your account has been registered successfully!"
+            "message": f"Welcome, {instance.username}. Your account has been registered successfully! Please check your email to verify your account."
         }
-
 
 
 # change password >>> send notification and email after change password >>> Cutomized

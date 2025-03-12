@@ -1,8 +1,8 @@
 from rest_framework import status,viewsets, permissions, generics,filters
 from rest_framework.response import Response
-from rest_framework.decorators import action
+from rest_framework.decorators import action,permission_classes,api_view
 from django.shortcuts import get_object_or_404
-from .models import Specialization, CustomUser,BlacklistedAccessToken 
+from .models import Specialization, CustomUser,BlacklistedAccessToken ,BlacklistedRefreshToken
 from .serializers import SpecializationListSerializer, SpecializationDetailSerializer, DoctorSerializer , CustomChangePasswordSerializer
 from .filters import SpecializationFilter, DoctorFilter
 from django_filters.rest_framework import DjangoFilterBackend
@@ -19,6 +19,7 @@ import jwt
 # from django.core.cache import cache
 #Karim
 from rest_framework_simplejwt.token_blacklist.models import OutstandingToken
+
 
 
 class LoginView(TokenObtainPairView):
@@ -54,23 +55,32 @@ class LogoutView(APIView):
                 return Response({'error': 'Refresh token is required'}, status=status.HTTP_400_BAD_REQUEST)
 
             # إضافة الـ refresh_token إلى القائمة السوداء
-            token = RefreshToken(refresh_token)
-            token.blacklist()
+            try:
+                token = RefreshToken(refresh_token)
+                token.blacklist()  # إضافة الـ refresh_token إلى القائمة السوداء
+            except Exception as e:
+                return Response({"error": f"Invalid refresh token: {str(e)}"}, status=status.HTTP_400_BAD_REQUEST)
 
             # إضافة الـ access_token إلى القائمة السوداء
             auth_header = request.headers.get("Authorization", "")
             if auth_header.startswith("Bearer "):
                 access_token = auth_header.split(" ")[1]
-                decoded_token = jwt.decode(access_token, options={"verify_signature": False})
-                jti = decoded_token.get("jti")
-                if not BlacklistedAccessToken.objects.filter(jti=jti).exists():
-                    BlacklistedAccessToken.objects.create(jti=jti)
+                try:
+                    decoded_token = jwt.decode(access_token, options={"verify_signature": False})
+                    jti = decoded_token.get("jti")
+                    if not BlacklistedAccessToken.objects.filter(jti=jti).exists():
+                        BlacklistedAccessToken.objects.create(jti=jti)
+                except jwt.ExpiredSignatureError:
+                    return Response({"error": "Token has expired"}, status=status.HTTP_400_BAD_REQUEST)
+                except jwt.InvalidTokenError:
+                    return Response({"error": "Invalid token"}, status=status.HTTP_400_BAD_REQUEST)
 
             return Response({"detail": "Successfully logged out"}, status=status.HTTP_200_OK)
 
         except Exception as e:
             return Response({"error": str(e)}, status=status.HTTP_400_BAD_REQUEST)
-   
+
+  
 # دا التعديل بتاع تغير الباسورد وكدا بعد معملنا وكدا DEAFULT CHANGE PASSWORD مخصص لينا احنا بدل المكتبه الاساسيه الللي بنسدخمها وكدا
 # class ChangePasswordView(generics.UpdateAPIView):
 #     serializer_class = CustomChangePasswordSerializer
@@ -92,6 +102,59 @@ class LogoutView(APIView):
 #             BlacklistedAccessToken.objects.create(jti=jti)
 
 #         return Response({"detail": "Password changed successfully. Please log in again."}, status=status.HTTP_200_OK)   
+
+# @api_view(['PATCH'])
+# @permission_classes([IsAuthenticated])
+# def change_password(request):
+#     # الحصول على المستخدم الحالي من الطلب
+#     user = request.user
+#     serializer = CustomChangePasswordSerializer(data=request.data, context={"request": request})
+
+#     if serializer.is_valid(raise_exception=True):
+#         # حفظ كلمة المرور الجديدة
+#         serializer.save()
+
+#         # إضافة الـ access_token إلى القائمة السوداء
+#         auth_header = request.headers.get("Authorization", "")
+#         if auth_header.startswith("Bearer "):
+#             access_token = auth_header.split(" ")[1]
+#             try:
+#                 decoded_token = jwt.decode(access_token, options={"verify_signature": False})
+#                 jti = decoded_token.get("jti")
+#                 if not BlacklistedAccessToken.objects.filter(jti=jti).exists():
+#                     BlacklistedAccessToken.objects.create(jti=jti)
+#             except jwt.ExpiredSignatureError:
+#                 return Response({"error": "Token has expired"}, status=status.HTTP_400_BAD_REQUEST)
+#             except jwt.InvalidTokenError:
+#                 return Response({"error": "Invalid token"}, status=status.HTTP_400_BAD_REQUEST)
+
+#         # إضافة الـ refresh_token إلى القائمة السوداء
+#         refresh_token = request.data.get('refresh')
+#         if refresh_token:
+#             try:
+#                 decoded_refresh_token = jwt.decode(refresh_token, options={"verify_signature": False})
+#                 refresh_jti = decoded_refresh_token.get("jti")
+#                 if not BlacklistedRefreshToken.objects.filter(jti=refresh_jti).exists():
+#                     BlacklistedRefreshToken.objects.create(jti=refresh_jti)
+#             except jwt.ExpiredSignatureError:
+#                 return Response({"error": "Refresh token has expired"}, status=status.HTTP_400_BAD_REQUEST)
+#             except jwt.InvalidTokenError:
+#                 return Response({"error": "Invalid refresh token"}, status=status.HTTP_400_BAD_REQUEST)
+
+#         # إرسال إيميل بعد تغيير كلمة المرور
+#         context = {'user': user}
+#         subject = render_to_string('rest_registration/password_changed/subject.txt', context).strip()
+#         message = render_to_string('rest_registration/password_changed/body.txt', context)
+
+#         send_mail(
+#             subject=subject,
+#             message=message,
+#             from_email=None,  # سيتم استخدام DEFAULT_FROM_EMAIL في settings
+#             recipient_list=[user.email],
+#             fail_silently=False,
+#         )
+
+#         return Response({"detail": "Password changed successfully. Please log in again."}, status=status.HTTP_200_OK)
 
 class ChangePasswordView(generics.UpdateAPIView):
     serializer_class = CustomChangePasswordSerializer
