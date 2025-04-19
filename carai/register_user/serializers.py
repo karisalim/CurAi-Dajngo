@@ -218,25 +218,7 @@ class CustomChangePasswordSerializer(serializers.Serializer):
 
         return Response({"detail": "Password changed successfully. Please log in again."}, status=status.HTTP_200_OK)
 
-    # def save(self, **kwargs):
-    #     user = self.context['request'].user
-    #     user.set_password(self.validated_data['new_password'])
-    #     user.save()
-
-    #     # ✅ إرسال إيميل بعد تغيير كلمة المرور
-    #     context = {'user': user}
-    #     subject = render_to_string('rest_registration/password_changed/subject.txt', context).strip()
-    #     message = render_to_string('rest_registration/password_changed/body.txt', context)
-
-    #     send_mail(
-    #         subject=subject,
-    #         message=message,
-    #         from_email=None,  # سيتم استخدام DEFAULT_FROM_EMAIL في settings
-    #         recipient_list=[user.email],
-    #         fail_silently=False,
-    #     )
-
-    #     return user
+ 
 
 #rate serializers
 class DoctorReviewSerializer(serializers.ModelSerializer):
@@ -280,3 +262,14 @@ class SpecializationDetailSerializer(serializers.ModelSerializer):
         """إرجاع قائمة الأطباء الموافق عليهم فقط داخل هذا التخصص"""
         approved_doctors = CustomUser.objects.filter(specialization=obj, role='doctor', is_approved=True)
         return DoctorSerializer(approved_doctors, many=True).data
+
+
+# ContactUs 
+
+# register_user/serializers.py
+
+class ContactUsSerializer(serializers.Serializer):
+    name = serializers.CharField(max_length=100)
+    email = serializers.EmailField()
+    subject = serializers.CharField(max_length=200)
+    message = serializers.CharField()

@@ -1,6 +1,6 @@
 from django.urls import path, include
 from rest_framework.routers import DefaultRouter
-from .views import SpecializationViewSet,DoctorViewSet,LogoutView,LoginView ,ChangePasswordView  
+from .views import SpecializationViewSet,DoctorViewSet,LogoutView,LoginView ,ChangePasswordView  ,ContactUsView
 from rest_registration.api.views import(
     login,
     register,
@@ -54,7 +54,8 @@ urlpatterns = [
     # Cahcing Karim
     # path("api/cached-doctors/", CachedDoctorView.as_view(), name="cached-doctors"),
     
-    
+    path('api/contact-us/', ContactUsView.as_view(), name='contact_us'),
+
 
     
 ]
